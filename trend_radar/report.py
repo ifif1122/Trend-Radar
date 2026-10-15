@@ -8,6 +8,7 @@ from .dashboard import data as dashboard_data, feedback_script, fragment
 from .storage import atomic_text, write_json
 from .content import brief
 from .content_report import page as content_page
+from .demand_ranking import build as demand_ranking, fragment as demand_fragment
 
 
 def render(db, output, mode, errors=()):
@@ -22,6 +23,13 @@ def render(db, output, mode, errors=()):
     e = lambda x: html.escape(str(x), quote=True)
     options = lambda values: ''.join(f'<option>{e(v)}</option>' for v in values)
     candidates = ''.join(f'<article id="candidate-{e(a["id"])}"><h3>{e(a["title"])}</h3><p>順位 {i+1} · 検証済み独立ソース群 {a["score"]}件</p><p>件数順の仮説ランキングです。市場規模・購入意思を推定する点数ではありません。</p><a href="#evidence" class="candidate-link" data-analysis="{e(a["id"])}">この候補の根拠を見る</a></article>' for i, a in enumerate(ranks))
+    demand = demand_ranking(rows, payload.get('ai_analysis'), output / 'market_analysis.json')
+    payload['demand_ranking'] = demand
+    candidates = demand_fragment(demand, rows) + '<details><summary>従来の情報源別集計（検証済み根拠の件数順）</summary>' + candidates + '</details>'
+    demand_backs = {}
+    for idea in demand['candidates']:
+        for ref in idea['source_ids']:
+            demand_backs.setdefault(ref, []).append(f'<a href="#{e(idea["id"])}">{e(idea["title"])}へ戻る</a>')
     cards = []
     groups = {}
     for s in rows:
@@ -32,7 +40,7 @@ def render(db, output, mode, errors=()):
             v = s['verification']
             entries.append(f'''<section id="source-{e(s['id'])}"><h3><a href="{e(s['url'])}" target="_blank" rel="noopener noreferrer">{e(s['title'])}</a></h3>
 <p class="badge">{e(s['kind'])} · {e(s['media'])} · {e(' / '.join(s['categories']))}</p>
-<dl><dt>投稿日時</dt><dd>{e(s.get('published_at') or '不明')}</dd><dt>取得日時</dt><dd>{e(s['fetched_at'])}</dd><dt>初回取得</dt><dd>{e(s['first_seen'])}</dd><dt>URL</dt><dd><a href="{e(s['url'])}" target="_blank" rel="noopener noreferrer">{e(s['url'])}</a></dd><dt>概要</dt><dd>{e(s['summary'])}</dd><dt>関連する分析・分類理由</dt><dd>{e(s['reason'])} <a class="back" href="#candidate-{e(s['analysis_id'])}">{e(s['analysis_title'])}へ戻る</a></dd><dt>信頼性</dt><dd>{e(s.get('reliability', '未評価'))}</dd><dt>確認状況</dt><dd>{e(v['status'])} / HTTP {e(v['http'])} / {e(v['checked_at'])}。内容の真偽・再現性：{'確認済み' if s.get('content_verified') else '未確認'}。分類：{e(s.get('classification', '人手入力'))}</dd><dt>転送先</dt><dd>{e(v.get('final_url') or 'なし')}</dd><dt>履歴</dt><dd>メタデータ {s['versions']}版（取得・URL確認履歴はreport.jsonとSQLiteに保持）</dd></dl></section>''')
+<dl><dt>投稿日時</dt><dd>{e(s.get('published_at') or '不明')}</dd><dt>取得日時</dt><dd>{e(s['fetched_at'])}</dd><dt>初回取得</dt><dd>{e(s['first_seen'])}</dd><dt>URL</dt><dd><a href="{e(s['url'])}" target="_blank" rel="noopener noreferrer">{e(s['url'])}</a></dd><dt>概要</dt><dd>{e(s['summary'])}</dd><dt>関連する分析・分類理由</dt><dd>{e(s['reason'])} <a class="back" href="#candidate-{e(s['analysis_id'])}">{e(s['analysis_title'])}へ戻る</a></dd><dt>信頼性</dt><dd>{e(s.get('reliability', '未評価'))}</dd><dt>確認状況</dt><dd>{e(v['status'])} / HTTP {e(v['http'])} / {e(v['checked_at'])}。内容の真偽・再現性：{'確認済み' if s.get('content_verified') else '未確認'}。分類：{e(s.get('classification', '人手入力'))}</dd><dt>転送先</dt><dd>{e(v.get('final_url') or 'なし')}</dd><dt>関連する具体的需要候補</dt><dd>{' / '.join(demand_backs.get(s['id'], [])) or '個別分析なし'}</dd><dt>履歴</dt><dd>メタデータ {s['versions']}版（取得・URL確認履歴はreport.jsonとSQLiteに保持）</dd></dl></section>''')
         data = dict(analyses=sorted({s['analysis_id'] for s in members}), kinds=sorted({s['kind'] for s in members}), media=sorted({s['media'] for s in members}), categories=sorted({c for s in members for c in s['categories']}), dates=[(s.get('published_at') or '')[:10] for s in members], first_seen=[s['first_seen'][:10] for s in members], search=' '.join(str(s.get(k, '')) for s in members for k in ('title', 'summary', 'media', 'url', 'analysis_title')))
         data['relevance'] = max((a['score'] for a in ranks if a['id'] in data['analyses']), default=0)
         cards.append(f'<article class="source" data-filter="{e(json.dumps(data, ensure_ascii=False))}"><p>同一・類似ソース群：{len(members)}件（ランキングでは1件）</p>{"".join(entries)}</article>')
@@ -64,6 +72,7 @@ $('reset').onclick=reset;for(const b of document.querySelectorAll('[data-view]')
     page = page.replace(":0;});for(const c", ":db.dates.filter(Boolean).sort().at(-1)?.localeCompare(da.dates.filter(Boolean).sort().at(-1)||'')||0;});for(const c")
     replacements = dict(MODE=mode, TIME=payload['generated_at'], CANDIDATES=candidates or '<p>検証済み根拠なし</p>', KINDS=options(KINDS), CATEGORIES=options(CATEGORIES), ANALYSES=''.join(f'<option value="{e(a["id"])}">{e(a["title"])}</option>' for a in ranks), SOURCES=''.join(cards), HISTORY=f'保存ソース {len(rows)}件 / メタデータ履歴 {len(versions)}版 / URL確認 {len(checks)}回', ERRORS=error_html, TODAY=payload['generated_at'][:10])
     page = re.sub(r'([A-Z]+)_PLACEHOLDER', lambda m: e(replacements[m[1]]) if m[1] in ('MODE', 'TIME') else replacements[m[1]], page)
+    page = page.replace('filter();\n</script>', "filter();for(const a of document.querySelectorAll('.analysis-source-link'))a.onclick=()=>reset();\n</script>")
     page = page.replace('<a href="#history">収集履歴</a>', '<a href="#history">収集履歴</a><a href="#research">社会需要</a><a href="#quality">品質</a><a href="#proposals">改善提案</a><a href="#effects">効果検証</a><a href="#feedback">評価</a>')
     page = page.replace('</main></body>', fragment(payload) + feedback_script() + '</main></body>')
     write_json(output / 'report.json', payload)
