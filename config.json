@@ -1,0 +1,10 @@
+{
+  "repositories": ["microsoft/vscode", "ollama/ollama"],
+  "issues_per_repository": 5,
+  "releases_per_repository": 2,
+  "request_interval_seconds": 1.1,
+  "max_requests": 40,
+  "feeds": [
+    {"id": "digital-japan", "name": "デジタル庁", "url": "https://www.digital.go.jp/rss/news.xml", "kind": "公式発表", "analysis_title": "日本の行政デジタル化・生活支援の需要（調査仮説）", "enabled": true, "rights_confirmed": true, "limit": 5}
+  ]
+}

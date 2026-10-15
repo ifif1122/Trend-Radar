@@ -1,0 +1,27 @@
+name: Trend Radar regression
+on:
+  pull_request:
+  push:
+    branches: ['main', 'feature/trend-radar-*']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: .
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q
+          python -m ruff check trend_radar tests tools
+          python -B -m trend_radar --mode sample
+          node tests/test_ui.mjs
+          node tests/test_feedback.mjs

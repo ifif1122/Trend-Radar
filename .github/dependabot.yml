@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      test-tool-patches:
+        update-types: [patch]
+    commit-message:
+      prefix: 'Trend Radar deps'

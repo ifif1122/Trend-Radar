@@ -1,0 +1,164 @@
+name: Trend Radar
+on:
+  workflow_dispatch:
+    inputs:
+      weekly:
+        description: Generate weekly summary too
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 23,11 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: trend-radar-state
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: github.event_name == 'workflow_dispatch' || vars.TREND_RADAR_SCHEDULE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Start timing
+        run: echo "TREND_ACTIONS_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .requirements-dev.txt
+      - name: Restore durable history
+        run: |
+          mkdir -p state
+          set +e
+          git ls-remote --exit-code --heads origin trend-radar-state > /tmp/trend-state-ref
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            git fetch --depth=1 origin trend-radar-state
+            git archive FETCH_HEAD | tar -x -C state
+          elif [ "$status" -ne 2 ]; then
+            exit "$status"
+          fi
+      - name: Test and static analysis
+        working-directory: .
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q
+          python -m ruff check trend_radar tests tools
+      - name: Import submitted feedback
+        working-directory: .
+        run: |
+          for file in feedback/inbox/*.json; do
+            if [ -f "$file" ]; then python -B -m trend_radar --mode report --feedback-file "$file"; fi
+          done
+      - name: Collect, inspect, recover and report
+        working-directory: .
+        env:
+          WEEKLY: ${{ inputs.weekly }}
+        run: |
+          args=()
+          if [ "$WEEKLY" = true ] || [ "$(TZ=Asia/Tokyo date +%u)" = 7 ]; then args+=(--weekly); fi
+          python -B -m trend_radar --mode live "${args[@]}"
+      - uses: actions/setup-node@v4
+        if: always()
+        with:
+          node-version: '22'
+      - name: Dashboard script regression
+        if: always()
+        working-directory: .
+        run: |
+          node tests/test_ui.mjs
+          node tests/test_feedback.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trend-collected-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/
+            state/
+          retention-days: 7
+      - name: Failure summary
+        if: failure()
+        run: echo 'Trend Radar failed. See failure.json and events.jsonl in artifact; research history is preserved.' >> "$GITHUB_STEP_SUMMARY"
+  manage:
+    needs: collect
+    if: always() && needs.collect.result != 'skipped' && !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: trend-collected-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .
+      - name: Synchronize diagnostics, never run Codex
+        working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEEKLY: ${{ inputs.weekly }}
+        run: |
+          args=()
+          if [ "$WEEKLY" = true ] || [ "$(TZ=Asia/Tokyo date +%u)" = 7 ]; then args+=(--weekly); fi
+          python -B -m trend_radar --mode report --sync-issues "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trend-final-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/
+            state/
+          retention-days: 14
+  persist:
+    needs: [collect, manage]
+    if: always() && needs.collect.result != 'skipped' && !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        id: final
+        continue-on-error: true
+        with:
+          name: trend-final-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trend-final
+      - uses: actions/download-artifact@v4
+        if: steps.final.outcome == 'failure'
+        with:
+          name: trend-collected-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trend-final
+      - name: Persist only complete SQLite state
+        run: |
+          test -f "$RUNNER_TEMP/trend-final/state/live.sqlite"
+          python -c "import sqlite3,os; p=os.path.join(os.environ['RUNNER_TEMP'],'trend-final','state','live.sqlite'); db=sqlite3.connect(p); assert db.execute('pragma integrity_check').fetchone()[0]=='ok'; db.close()"
+          git worktree add --detach "$RUNNER_TEMP/trend-state" HEAD
+          cd "$RUNNER_TEMP/trend-state"
+          set +e
+          git ls-remote --exit-code --heads origin trend-radar-state > /tmp/trend-state-ref-persist
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            git fetch --depth=1 origin trend-radar-state
+            git checkout -B trend-radar-state FETCH_HEAD
+          elif [ "$status" -eq 2 ]; then
+            git checkout --orphan trend-radar-state
+            git rm -rf .
+          else
+            exit "$status"
+          fi
+          cp "$RUNNER_TEMP/trend-final/state/"*.sqlite .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- '*.sqlite'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Preserve Trend Radar history and quality measurements'
+            git push origin HEAD:trend-radar-state
+          fi

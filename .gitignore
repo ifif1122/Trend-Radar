@@ -1,0 +1,12 @@
+__pycache__/
+state/
+reports-sample/
+.dev-tools/
+.pytest_cache/
+.ruff_cache/
+
+reports/
+*.pyc
+.venv/
+.env
+.env.*
