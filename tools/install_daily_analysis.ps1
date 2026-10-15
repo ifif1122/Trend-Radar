@@ -12,4 +12,4 @@ $daily = New-ScheduledTaskTrigger -Daily -At $Time
 $logon = New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
 $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName 'Trend Radar Daily Plus Analysis' -Action $action -Trigger @($daily, $logon) -Settings $settings -Principal $principal -Description '公開情報をPC側CodexのChatGPTログインで分析。1日1試行、有料API不使用。' -Force | Select-Object TaskName, State
+Register-ScheduledTask -TaskName 'Trend Radar Daily Plus Analysis' -Action $action -Trigger @($daily, $logon) -Settings $settings -Principal $principal -Description 'Analyze public evidence with local Codex ChatGPT login. Maximum one attempt per day. No paid API.' -Force | Select-Object TaskName, State
