@@ -68,7 +68,12 @@ $('reset').onclick=reset;for(const b of document.querySelectorAll('[data-view]')
     page = page.replace('</main></body>', fragment(payload) + feedback_script() + '</main></body>')
     write_json(output / 'report.json', payload)
     write_json(output / 'analysis.json', payload['content_analysis'])
-    atomic_text(output / 'analysis.html', content_page(payload['content_analysis'], payload['ai_analysis'], payload['ai_input_state']))
+    analysis_page = content_page(payload['content_analysis'], payload['ai_analysis'], payload['ai_input_state'])
+    if (output / 'market_analysis.html').is_file():
+        review_link = '<aside><p><a href="market_analysis.html">具体的な機能需要・収益化の手動再分析を開く</a>（分析日時・対象範囲はリンク先を確認）</p></aside>'
+        page = page.replace('<main>', '<main>'+review_link, 1)
+        analysis_page = analysis_page.replace('<body>', '<body>'+review_link, 1)
+    atomic_text(output / 'analysis.html', analysis_page)
     atomic_text(output / 'analysis_brief.md', brief(payload['content_analysis']))
     atomic_text(output / 'report.html', page)
     return payload

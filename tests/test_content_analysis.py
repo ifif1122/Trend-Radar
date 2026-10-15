@@ -121,6 +121,18 @@ class ContentTests(unittest.TestCase):
                 run_codex(packet(self.add()), executable='codex')
         self.assertEqual(execute.call_count, 1)
 
+    def test_saved_manual_review_remains_linked_after_regeneration(self):
+        self.add()
+        with tempfile.TemporaryDirectory() as temp:
+            render(self.db, temp, 'report')
+            self.assertNotIn('href="market_analysis.html"', (Path(temp)/'analysis.html').read_text(encoding='utf-8'))
+            review = Path(temp)/'market_analysis.html'
+            review.write_text('saved review', encoding='utf-8')
+            render(self.db, temp, 'report')
+            self.assertEqual(review.read_text(encoding='utf-8'), 'saved review')
+            for name in ('report.html', 'analysis.html'):
+                self.assertIn('href="market_analysis.html"', (Path(temp)/name).read_text(encoding='utf-8'))
+
     def test_analysis_html_and_ai_escape_titles_and_output(self):
         rows = self.add(title='<img src=x onerror=alert(1)> slow API')
         response = self.response(packet(rows))

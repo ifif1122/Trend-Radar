@@ -37,3 +37,5 @@ AIの試行上限はJSTの暦日で1回・月31回。開始前にSQLiteの排他
 - [Codexの非対話実行・ChatGPT認証](https://learn.chatgpt.com/docs/non-interactive-mode)：公開リポジトリのCIにChatGPT認証を持ち出す方式は使用しない。
 - [利用枠](https://learn.chatgpt.com/docs/pricing)：Plusの枠は開発と共有し、APIキーは別の課金経路。
 - [ローカル定期タスク](https://learn.chatgpt.com/docs/automations?surface=app)：ローカルファイルを使う場合はPCの稼働が必要。本機能ではWindowsタスクを利用。
+
+2026-10-15の追加：日次分析の指示に具体的機能・支払主体・代替手段・価格の仮定・提供原価・有料試行の採否条件を追加。入力バージョンを更新して旧指示のキャッシュと区別します。今回のチャットによる手動再分析はreports/market_analysis.htmlおよび日時付きhistoryに保存し、日次CLIの試行制限は変更しません。保存済みの手動レポートがあるときだけHTMLからリンクし、再生成後も結果を保持します。本文・コメントの再確認は今回の手動調査であり、日次分析が常に全文を読むものではありません。
