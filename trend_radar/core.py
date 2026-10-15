@@ -227,7 +227,7 @@ def collect(client, config):
                     title = item.get('title') if issue else item.get('name') or item['tag_name']
                     result.append(dict(url=item['html_url'], title=title[:500], media=f'GitHub / {repo}', published_at=item.get('created_at') if issue else item.get('published_at'), fetched_at=now(), kind='GitHub Issues' if issue else '公式発表', categories=categories,
                         summary=('利用者による課題報告。内容の再現・事実確認は未実施。' if problem else '公開Issueとして話題を観測。需要や不具合の存在は未確定。') if issue else '開発元によるリリース告知。利用者数や購入意思を示すものではありません。',
-                        analysis_id=repo.replace('/', '-'), analysis_title=f'{repo} の利用支援・運用改善需要（仮説）', reason='bug等のラベルに基づく仮分類。人手レビューが必要。' if problem else '公開活動の観測。社会全体での注目度を示す統計ではありません。', reliability='利用者の自己申告・未検証' if issue else '開発元の一次発表', content_verified=False, classification='自動・暫定', origin='GitHub公式REST API'))
+                        analysis_id=repo.replace('/', '-'), analysis_title=f'{repo} の利用支援・運用改善需要（仮説）', reason='bug等のラベルに基づく仮分類。人手レビューが必要。' if problem else '公開活動の観測。社会全体での注目度を示す統計ではありません。', reliability='利用者の自己申告・未検証' if issue else '開発元の一次発表', content_verified=False, classification='自動・暫定', origin='GitHub公式REST API', content_features=item.get('content_features')))
             except (HTTPError, URLError, OSError, RuntimeError, ValueError, KeyError, TypeError):
                 errors.append(f'{repo}/{endpoint}: 取得失敗・制限（全文・認証情報は記録しません）')
     return result, errors

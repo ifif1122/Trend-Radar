@@ -36,6 +36,7 @@ def collect_run(db, args, config):
             if item.get('rights_confirmed') is not True or not item.get('origin'):
                 raise ValueError('利用条件確認 rights_confirmed と origin が必要')
             item.update(fetched_at=now(), content_verified=False)
+            item.pop('content_features', None)
         incoming.extend(imported)
     accepted, rejected, invalid = set(), 0, 0
     seen = set()
@@ -97,6 +98,7 @@ def execute(args, db):
         if args.mode == 'live':
             with db:
                 db.execute('INSERT INTO report_snapshots(at,payload) VALUES (?,?)', (summary['at'], json.dumps(dict(ranking=payload['ranking'], summary=summary), ensure_ascii=False)))
+                db.execute('INSERT INTO analysis_runs(at,payload) VALUES (?,?)', (summary['at'], json.dumps(payload['content_analysis'], ensure_ascii=False)))
         with db:
             db.execute('INSERT INTO runs(at,payload) VALUES (?,?)', (summary['at'], json.dumps(summary, ensure_ascii=False)))
         write_json(Path(args.output) / 'run.json', summary)

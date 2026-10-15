@@ -18,6 +18,9 @@ def migrate(db):
     CREATE TABLE IF NOT EXISTS endpoint_state(url TEXT PRIMARY KEY, failures INTEGER NOT NULL, retry_at TEXT);
     CREATE TABLE IF NOT EXISTS report_snapshots(id INTEGER PRIMARY KEY, at TEXT NOT NULL, payload TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS weekly_reports(week TEXT PRIMARY KEY, at TEXT NOT NULL, payload TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS analysis_runs(id INTEGER PRIMARY KEY, at TEXT NOT NULL, payload TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS ai_attempts(id TEXT PRIMARY KEY, at TEXT NOT NULL, status TEXT NOT NULL, input_hash TEXT NOT NULL, payload TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS ai_reports(id INTEGER PRIMARY KEY, at TEXT NOT NULL, input_hash TEXT NOT NULL, payload TEXT NOT NULL);
     ''')
     columns = {r[1] for r in db.execute('PRAGMA table_info(problems)')}
     if 'synced_at' not in columns:
