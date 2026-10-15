@@ -2,11 +2,21 @@
 
 公式リポジトリ：[ifif1122/Trend-Radar](https://github.com/ifif1122/Trend-Radar)。独立したGitリポジトリとして管理します。
 
+## 収集内容の分析・PC側Plus分析
+
+内容から不満・機能要望・需要仮説を整理する画面を追加。`reports/analysis.html` に根拠・試作案・検証方法、`reports/report.html#ai-analysis` に実行済みAI分析を表示する。本文はメモリ内で特徴を抽出し、全文は保存・送信しない。
+
+ユーザー指定により、GitHub側はPythonで収集し、PC側でChatGPTログイン済みCodexを1日1回実行する。別料金のAPIへは切り替えない。Plusの利用枠を開発と共有するため、消費率の保証はしない。設定・制限・保存先・解除方法は[CONTENT_ANALYSIS.md](CONTENT_ANALYSIS.md)を参照。
+
+```powershell
+py -3.13 -B tools/daily_analysis.py --project C:\Users\Owner\Trend-Radar
+```
+
 日本株分析とは独立した新規プロジェクト。Python 3.12以上・標準ライブラリのみ。
 
 ## 自律保守・改善（2026-10-15追加）
 
-日々の処理はPythonとActionsのみで実行。Codex・OpenAI API・有料サービスを呼び出さない。品質検査、有限再試行、メタデータキャッシュ、情報源の一時停止、改善タスク、週間提案、7/30日評価まで自動化する。一般的なコード変更・mainへのマージは自動実行しない。
+GitHub側の収集・保守はPythonとActionsで実行し、Codex・OpenAI API・有料サービスを呼び出さない。PC側の内容分析だけは、承認されたChatGPTログイン済みCodexで1日1回実行する。品質検査、有限再試行、メタデータキャッシュ、情報源の一時停止、改善タスク、週間提案、7/30日評価まで自動化する。一般的なコード変更・mainへのマージは自動実行しない。
 
 ```powershell
 py -3.13 -m pip install -r requirements-dev.txt

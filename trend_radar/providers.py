@@ -7,6 +7,7 @@ from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError
 
 from .core import canonical, now
+from .content import VERSION, extract
 
 
 def metadata(client, url, parser):
@@ -19,6 +20,8 @@ def metadata(client, url, parser):
         cached = json.loads(old['payload']) if old else None
         if cached is not None and not isinstance(cached, list):
             raise ValueError('invalid cache')
+        if cached and getattr(parser, 'feature_version', None) and any(item.get('content_features', {}).get('version') != parser.feature_version for item in cached):
+            cached, old = None, None
     except (ValueError, TypeError):
         cached = None
         old = None  # Only derived cache is regenerated; research history stays intact.
@@ -69,7 +72,9 @@ def github_parser(body):
         if not isinstance(item, dict) or 'html_url' not in item:
             raise ValueError('GitHub API schema changed')
         # Keep only fields used by analysis; never body, comments, author profiles.
-        result.append({k: item[k] for k in ('title', 'name', 'tag_name', 'html_url', 'created_at', 'published_at', 'updated_at', 'labels', 'pull_request') if k in item})
+        row = {k: item[k] for k in ('title', 'name', 'tag_name', 'html_url', 'created_at', 'published_at', 'updated_at', 'labels', 'pull_request') if k in item}
+        row['content_features'] = extract(item.get('title') or item.get('name') or item.get('tag_name'), item.get('body'), kind='GitHub Issues' if 'title' in item else '公式発表')
+        result.append(row)
     return result
 
 
@@ -95,7 +100,9 @@ def parse_feed(body):
             except ValueError:
                 date = parsedate_to_datetime(date).isoformat()
         if title and url:
-            result.append(dict(title=title[:500], url=canonical(url), published_at=date))
+            description = next((fields[k] for k in ('description', 'summary', 'content', 'encoded') if k in fields), None)
+            text = ''.join(description.itertext()) if description is not None else ''
+            result.append(dict(title=title[:500], url=canonical(url), published_at=date, content_features=extract(title, text, kind='公式発表', scope='title_and_rss_summary' if text else 'title_only')))
     return result
 
 
@@ -116,3 +123,7 @@ def collect_feeds(client, config):
         except (HTTPError, OSError, RuntimeError, ValueError, KeyError, TypeError, ET.ParseError):
             errors.append(f'{feed.get("id", "feed")}: RSS取得・形式確認失敗')
     return result, errors
+
+
+github_parser.feature_version = VERSION
+parse_feed.feature_version = VERSION

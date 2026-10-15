@@ -6,6 +6,8 @@ from pathlib import Path
 from .core import CATEGORIES, KINDS, now, ranking, sources
 from .dashboard import data as dashboard_data, feedback_script, fragment
 from .storage import atomic_text, write_json
+from .content import brief
+from .content_report import page as content_page
 
 
 def render(db, output, mode, errors=()):
@@ -65,5 +67,8 @@ $('reset').onclick=reset;for(const b of document.querySelectorAll('[data-view]')
     page = page.replace('<a href="#history">収集履歴</a>', '<a href="#history">収集履歴</a><a href="#research">社会需要</a><a href="#quality">品質</a><a href="#proposals">改善提案</a><a href="#effects">効果検証</a><a href="#feedback">評価</a>')
     page = page.replace('</main></body>', fragment(payload) + feedback_script() + '</main></body>')
     write_json(output / 'report.json', payload)
+    write_json(output / 'analysis.json', payload['content_analysis'])
+    atomic_text(output / 'analysis.html', content_page(payload['content_analysis'], payload['ai_analysis'], payload['ai_input_state']))
+    atomic_text(output / 'analysis_brief.md', brief(payload['content_analysis']))
     atomic_text(output / 'report.html', page)
     return payload

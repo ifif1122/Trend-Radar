@@ -6,11 +6,18 @@ from .improvement import ACTIONS, evaluate, proposals
 from .quality import recent
 from .research import analyze
 from .storage import migrate
+from .content import analyze_content
+from .content_report import fragment as content_fragment
+from .ai_analysis import latest, packet
+from .ai_report import fragment as ai_fragment
+import hashlib
 
 
 def data(db, rows):
     migrate(db)
-    return dict(quality=recent(db), proposals=proposals(db), evaluations=evaluate(db), research=analyze(rows, db), problems=[dict(r) | dict(payload=json.loads(r['payload'])) for r in db.execute('SELECT * FROM problems ORDER BY active DESC,last_seen DESC')], feedback_count=db.execute('SELECT COUNT(*) FROM feedback').fetchone()[0], previous_reports=[dict(r) for r in db.execute('SELECT * FROM report_snapshots ORDER BY id DESC LIMIT 20')])
+    ai = latest(db)
+    digest = hashlib.sha256(json.dumps(packet(rows), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    return dict(quality=recent(db), proposals=proposals(db), evaluations=evaluate(db), research=analyze(rows, db), content_analysis=analyze_content(rows, db), ai_analysis=ai, ai_input_state='current' if ai and ai['input_hash'] == digest else 'stale', problems=[dict(r) | dict(payload=json.loads(r['payload'])) for r in db.execute('SELECT * FROM problems ORDER BY active DESC,last_seen DESC')], feedback_count=db.execute('SELECT COUNT(*) FROM feedback').fetchone()[0], previous_reports=[dict(r) for r in db.execute('SELECT * FROM report_snapshots ORDER BY id DESC LIMIT 20')])
 
 
 def escaped(value):
@@ -41,7 +48,7 @@ def fragment(d):
         issue_link = f'<a href="{e(p["github_url"])}" target="_blank" rel="noopener noreferrer">関連Issueを開く</a>' if p.get('github_url') else ''
         proposal_cards.append(f'<article><h3>優先{i+1}：{e(p["name"])}</h3><p>{p["score"]}/100 · {e(p["status"])} · {e(p["inference"])}</p><p>配点 {e(p["basis"])} / 上限 {e(p["weights"])}</p>{issue_link}{pretty(detail)}</article>')
     evaluations = ''.join(f'<article><h3>{e(x["name"])}：{x["horizon"]}日評価 — {e(x["verdict"])}</h3><p>評価予定 {e(x["due"])} / {e(x["reason"])}</p>{pretty(x)}</article>' for x in d['evaluations'])
-    return f'''<section id="research"><h2>トレンド・社会需要の観測</h2><p>最新の公開情報から作る調査仮説です。社会課題・未充足需要・ビジネス機会の確定には追加調査が必要です。高度な意味分析・競合ツールの網羅調査は未実装で、日々の処理でAIを呼び出しません。</p>{''.join(research) or '<p>観測データなし</p>'}</section>
+    return ai_fragment(d['ai_analysis'], d['ai_input_state']) + content_fragment(d['content_analysis']) + f'''<section id="research"><h2>トレンド・社会需要の観測</h2><p>最新の公開情報から作る調査仮説です。社会課題・未充足需要・ビジネス機会の確定には追加調査が必要です。AI分析の実行状況は別枠に表示します。</p>{''.join(research) or '<p>観測データなし</p>'}</section>
 <section id="quality"><h2>システム品質</h2><p>比率は0〜1。内容の真偽や分類精度をURL有効率と混同しません。最新測定：{e(q['at']) if q else '未実施'}</p><dl>{values}</dl><p>入力同一URL重複率：{e(q.get('input_duplicate_rate')) if q else '未測定'} / 失敗実行累計：{e(q.get('failed_runs')) if q else '未測定'}</p><h3>情報源ごとのエラー</h3>{pretty(q.get('source_errors', {}) if q else {})}{history_table}<details><summary>品質履歴の詳細</summary>{pretty(d['quality'])}</details><h3>検出した問題</h3>{problems or '<p>検出なし（未検査の場合を含む）</p>'}</section>
 <section id="proposals"><h2>新機能・改善提案（最大5件）</h2><p>固定ルールによる推奨順位。点数は期待効果の保証ではありません。既に実装済みの提案は除外します。高度なAI提案は明示承認・月額上限を設定するまで無効です。</p>{''.join(proposal_cards) or '<p>追加提案なし</p>'}</section>
 <section id="effects"><h2>改善効果・履歴</h2>{evaluations or '<p>登録済み改善なし。実装前基準値は次の改善の比較に利用します。</p>'}<details><summary>過去レポートとの比較用スナップショット</summary>{pretty(d['previous_reports'])}</details></section>
